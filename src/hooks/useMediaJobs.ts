@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor } from '../store.ts';
-import { serialize } from '../model.ts';
+import { exportSequence, resolveClips } from '../editor/selectors';
 import { importVideo } from '../media/importVideo.ts';
-import { exportMP4 } from '../media/export.ts';
+import { exportMP4, exportProxy, disposeMediaEngines } from '../media/export.ts';
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -14,6 +14,10 @@ function download(blob: Blob, name: string) {
 }
 
 export function useMediaJobs() {
+  const [proxyBusy, setProxyBusy] = useState(false);
+  const [proxyProgress, setProxyProgress] = useState(0);
+  const proxyLock = useRef(false);
+  useEffect(() => () => disposeMediaEngines(), []);
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
   const locked = useRef(false);
@@ -41,21 +45,29 @@ export function useMediaJobs() {
     });
   }
   async function run(proxy = false) {
-    const { clips, selected, aspect, projectName } = useEditor.getState();
-    const clip = clips.find(c => c.id === selected);
-    if (proxy && !clip) return;
-    await job(proxy ? 'Building preview proxy' : 'Exporting MP4', async () => {
-      const source = proxy && clip ? [{ ...clip, in: 0, out: clip.duration }] : clips;
-      const blob = await exportMP4(source, setProgress, proxy, aspect);
-      if (proxy && clip) useEditor.getState().setProxy(clip.assetId, URL.createObjectURL(blob));
-      else download(blob, `${projectName.trim() || 'TrimCut'}.mp4`);
+    const { document, media, selection } = useEditor.getState();
+    const { aspect, name: projectName } = document;
+    const clip = resolveClips(document, media).find(c => c.id === selection[0]);
+    if (proxy) {
+      if (!clip || proxyLock.current || locked.current) return;
+      proxyLock.current = true; setProxyBusy(true); setProxyProgress(0);
+      try {
+        const blob = await exportProxy([{ ...clip, in: 0, out: clip.duration }], setProxyProgress, true, aspect);
+        useEditor.getState().setProxy(clip.assetId, URL.createObjectURL(blob));
+      } catch (error) { useEditor.getState().setError(error instanceof Error ? error.message : 'Proxy generation failed.'); }
+      finally { proxyLock.current = false; setProxyBusy(false); }
+      return;
+    }
+    if (proxyLock.current) { useEditor.getState().setError('Wait for the preview proxy before exporting. Editing remains available.'); return; }
+    await job('Exporting MP4', async () => {
+      const blob = await exportMP4(exportSequence(document, media), setProgress, false, aspect);
+      download(blob, `${projectName.trim() || 'TrimCut'}.mp4`);
     });
   }
   function save() {
-    const { clips, projectName, aspect } = useEditor.getState();
-    const data = serialize(clips, projectName, aspect);
+    const data = useEditor.getState().document;
     download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'TrimCut.project.json');
   }
-  return { busy, status, progress, add, run, save };
+  return { busy, proxyBusy, proxyProgress, status, progress, add, run, save };
 }
 export type MediaJobs = ReturnType<typeof useMediaJobs>;

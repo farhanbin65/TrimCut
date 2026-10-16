@@ -1,13 +1,17 @@
+import { PlacementControls } from './PlacementControls';
+import { useResolvedClips } from '../../hooks/useResolvedClips';
 import { useState } from 'react';
 import { useEditor } from '../../store';
 import { ASPECT_SIZES } from '../../types';
 import { length, timecode } from '../../model';
 import { Icon } from '../icons';
 const tabs = ['Video', 'Audio', 'Speed', 'Animation', 'Adjust'] as const;
-export function Inspector({ busy, onProxy }: { busy: boolean; onProxy: () => void }) {
-  const clip = useEditor(s => s.clips.find(c => c.id === s.selected));
-  const name = useEditor(s => s.projectName);
-  const aspect = useEditor(s => s.aspect);
+export function Inspector({ busy, proxyBusy, onProxy }: { busy: boolean; proxyBusy: boolean; onProxy: () => void }) {
+  const clips = useResolvedClips();
+  const selected = useEditor(s => s.selection[0]);
+  const clip = clips.find(c => c.id === selected);
+  const name = useEditor(s => s.document.name);
+  const aspect = useEditor(s => s.document.aspect);
   const trim = useEditor(s => s.trim);
   const [tab, setTab] = useState<typeof tabs[number]>('Video');
   const [width, height] = ASPECT_SIZES[aspect];
@@ -26,6 +30,7 @@ export function Inspector({ busy, onProxy }: { busy: boolean; onProxy: () => voi
       </div>
       <div id="inspector-content" role="tabpanel" aria-labelledby={`inspect-${tab}`} tabIndex={0} className="inspector-content">
         <div className="clip-summary"><Icon name="media" /><strong title={clip.name}>{clip.name}</strong></div>
+        <PlacementControls busy={busy} />
         {tab === 'Video' ? <>
           <section className="inspector-section"><h3>Source range <span>Seconds</span></h3>
             <label className="property-row">In point<input key={`${clip.id}-in-${clip.in}`} type="number" step={1 / 30}
@@ -46,7 +51,7 @@ export function Inspector({ busy, onProxy }: { busy: boolean; onProxy: () => voi
               <button disabled><Icon name="crop" size={16} />Crop</button></div>
           </section>
           <section className="inspector-section"><h3>Preview quality</h3><p className="muted">Create a smaller preview copy. Exports use your original file.</p>
-            <button className="button full-width" disabled={busy} onClick={onProxy}>
+            <button className="button full-width" disabled={busy || proxyBusy || !clip.width} onClick={onProxy}>
               <Icon name={clip.proxyUrl ? 'check' : 'layers'} size={17} />{clip.proxyUrl ? 'Rebuild proxy' : 'Build preview proxy'}
             </button>
           </section>

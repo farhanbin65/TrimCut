@@ -12,8 +12,8 @@ export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () 
     onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="panel-heading"><h2 id="shortcuts-title">Keyboard shortcuts</h2><IconButton icon="close" label="Close shortcuts" onClick={onClose} /></div>
     <p className="muted">Available now: Tab to navigate; arrow keys to resize focused panel dividers, switch tabs, and scrub the focused timeline.</p>
-    <h3>Planned editing shortcuts <span className="badge">Later phase</span></h3>
+    <h3>Editing shortcut reference <span className="badge">Timeline focus</span></h3>
     <div className="shortcut-list">{upcoming.map(([key, action]) => <div key={key}><span>{action}</span><kbd>{key}</kbd></div>)}</div>
-    <p className="muted">Editing shortcuts are not active yet. Escape closes this dialog.</p>
+    <p className="muted">When the timeline canvas has focus: S splits, Delete removes, Shift+Delete ripple deletes, Ctrl/⌘ Z undoes (Shift redoes), Ctrl/⌘ C/V/D copies/pastes/duplicates, M adds a marker. Escape cancels a drag. Global shortcuts arrive in Phase 6.</p>
   </dialog>;
 }

@@ -1,3 +1,4 @@
+import { PreviewSettings } from './PreviewSettings';
 import { useRef, useState } from 'react';
 import { useEditor } from '../../store';
 import { ASPECT_SIZES } from '../../types';
@@ -7,11 +8,11 @@ import { Icon } from '../icons';
 import { IconButton } from '../ui/IconButton';
 import { Transport } from './Transport';
 export function VideoPreview({ busy }: { busy: boolean }) {
-  const { videoRef, canvasRef } = useVideoPreview();
+  const { canvasRef } = useVideoPreview();
   const stage = useRef<HTMLDivElement>(null);
-  const aspect = useEditor(s => s.aspect);
+  const aspect = useEditor(s => s.document.aspect);
   const setAspect = useEditor(s => s.setAspect);
-  const hasClips = useEditor(s => s.clips.length > 0);
+  const hasClips = useEditor(s => Object.keys(s.document.clips).length > 0);
   const [zoom, setZoom] = useState('fit');
   const [width, height] = ASPECT_SIZES[aspect];
   async function fullscreen() {
@@ -29,9 +30,6 @@ export function VideoPreview({ busy }: { busy: boolean }) {
       <span className="preview-quality">Original / proxy</span>
     </div></div>
     <div className="preview-stage" ref={stage}>
-      <video ref={videoRef} playsInline hidden onError={() => {
-        if (hasClips) useEditor.getState().setError('Could not decode this video. Try an H.264 MP4.');
-      }} />
       {hasClips ? <canvas ref={canvasRef} width={width / 2} height={height / 2} aria-label="Video preview"
         className={zoom === 'fit' ? 'canvas-fit' : 'canvas-zoom'}
         style={zoom === 'fit' ? undefined : { width: width * Number(zoom), height: height * Number(zoom) }} /> :
@@ -39,6 +37,7 @@ export function VideoPreview({ busy }: { busy: boolean }) {
           <div className="preview-empty"><span className="preview-outline"><Icon name="play" size={32} /></span>
             <h2>Every story starts with a frame.</h2><p>Bring in your footage. Make it yours.</p><span>Drop video anywhere to begin</span></div></>}
     </div>
+    <PreviewSettings />
     <div className="preview-bottom"><div className="preview-view-tools">
       <IconButton icon="fit" label="Zoom preview to fit" active={zoom === 'fit'} onClick={() => setZoom('fit')} />
       <select aria-label="Preview zoom" value={zoom} onChange={e => setZoom(e.target.value)}>

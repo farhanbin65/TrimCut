@@ -1,11 +1,12 @@
+import { documentDuration } from '../../editor/math';
 import { useEditor } from '../../store';
-import { duration, timecode } from '../../model';
+import { timecode } from '../../model';
 import { FPS } from '../../types';
 import { IconButton } from '../ui/IconButton';
 export function Transport({ busy }: { busy: boolean }) {
   const time = useEditor(s => s.time);
   const playing = useEditor(s => s.playing);
-  const total = useEditor(s => duration(s.clips));
+  const total = useEditor(s => documentDuration(s.document));
   const disabled = busy || !total;
   function step(delta: number) {
     const state = useEditor.getState();

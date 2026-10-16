@@ -1,6 +1,6 @@
 # TrimCut Studio
 
-A local video editor built with React 18, strict TypeScript, Zustand, Canvas, and FFmpeg.wasm. Phase 1 adds the desktop editing workspace and an original SVG icon system while preserving the single-track MVP.
+A local video editor built with React 18, strict TypeScript, Zustand, Canvas, and FFmpeg.wasm. Phase 2 adds a normalized multi-track document and reversible commands on top of the Phase 1 workspace and original icons. See [Phase 2 review](docs/phase-2-review.md) for behavior, validation, and the manual checklist.
 
 ## Run
 
@@ -22,12 +22,22 @@ npm run desktop
 
 Desktop requires the Vite server running on **5173**. It is a development shell, not a packaged production app. `build` runs type checking, prepares FFmpeg, and writes `dist/`. To inspect a production build, run `npx vite preview`. Deployment must serve the WASM file with the correct MIME type; subpath hosting requires Vite's base configuration and matching route handling. `/icons` is designed for root hosting.
 
-## Implemented in Phase 1
+## Implemented in Phase 2
+
+- Normalized tracks/clips/assets, separate runtime media registry, explicit placement on a 30fps grid.
+- Multi-track video/audio editing, magnetic snapping, selected/group moves and trims, split, delete and global ripple delete.
+- 120-step undo/redo; one command per drag; Escape cancels.
+- Multi-selection, linking, copy/paste/duplicate, markers, lock/visibility, track addition, keyboard-accessible placement.
+- Version 2 JSON metadata download; optional API validates legacy and current schemas.
+- Preview selects the top visible video and shows black gaps. Independent audio mixing and layered compositing remain Phase 3; thumbnails/waveforms also remain Phase 3.
+- MP4 export explicitly rejects gaps, overlaps, hidden clips and separate audio until composited export is implemented in Phase 5.
+
+## Workspace features from Phase 1
 
 - Token-based dark theme; cyan/teal accent; project name and JSON save.
-- Full library tab rail and contextual inspector. Future editing actions are labeled and disabled.
+- Full library tab rail and contextual inspector. Advanced editing actions awaiting later phases are labeled and disabled.
 - Mouse/touch and keyboard panel resizing, remembered in localStorage; double-click a divider to reset it.
-- Working video import, search, source-range editing, split, sequence reordering, play/pause, frame stepping, and scrubbing.
+- Working video import, search, source-range editing, split, explicit clip placement, play/pause, frame stepping, and scrubbing.
 - Timeline zoom and horizontal scrolling; playback keeps its playhead visible.
 - Preview fit/50%/100%, fullscreen, and 16:9 / 9:16 / 1:1 / 4:5 project ratios. The selected ratio applies to MP4 export.
 - Aspect-preserving preview proxies; exports always read original media.
@@ -41,19 +51,22 @@ The main workspace is desktop-first (minimum 1010px, wider with expanded panels)
 
 ```mermaid
 flowchart TD
-  UI["React shell and inspector"] --> S["Zustand editor state"]
+  UI["React shell and inspector"] --> S["Normalized document and session"]
   T["Canvas timeline"] --> S
   S --> P["Video playback controller"]
   P --> C["Preview canvas"]
   UI --> J["Media jobs"]
   J --> W["FFmpeg worker"]
   W --> O["MP4 or preview proxy"]
-  S --> D["Version 1 JSON"]
+  S --> D["Version 2 JSON"]
+  S --> H["120 reversible commands"]
+  R["Runtime media registry"] --> P
   API["Optional local HTTP API"] --> DB["PostgreSQL JSONB"]
 ```
 
 - `src/types.ts`, `model.ts`: typed clip ranges, time mapping, trim/split math, timecode, serialization.
-- `src/store.ts`: ordered clips and session state. Multi-track normalization and command history belong to Phase 2.
+- `src/store.ts`: normalized document, session, runtime registry, and transactional edit actions.
+- `src/editor/`: document types, placement/snapping math, editing operations, reversible commands, validation, and preview/export adapters.
 - `src/components/layout/`: header, tabs, media panel, resize handles.
 - `src/hooks/usePanelSizes.ts`: bounded local layout preferences.
 - `src/components/preview/`, `hooks/useVideoPreview.ts`: video decoding, frame drawing, transport.
@@ -66,7 +79,7 @@ The browser video element decodes frames and plays audio; Canvas fits those fram
 
 ## Editing and export
 
-Import or drop browser-decodable video. Click a clip to inspect it; drag its edges to trim or drag the body to reorder. Use the ruler to scrub. In/out fields commit on blur or Enter. Split uses the current playhead.
+Import or drop browser-decodable video. Click a clip to inspect it; drag its edges to trim or drag the body to move in time or between compatible tracks. Use the ruler to scrub. In/out fields commit on blur or Enter. Split uses the current playhead.
 
 MP4 export is H.264, 30fps, stereo 48kHz AAC. Silent sources receive silence. Each segment is normalized and the parts are concatenated. Output sizes: 1920×1080, 1080×1920, 1080×1080, or 864×1080. Processing is local and can be slow for long media. Progress currently describes each encoding stage, not the entire job. Cancellation, custom resolution/fps/bitrate, WebM/GIF and 4K remain future work.
 
@@ -74,14 +87,11 @@ The installed FFmpeg core can return `-1` on successful ffprobe operations. The 
 
 ## Optional PostgreSQL API
 
-Create a database, apply `server/schema.sql`, and set `DATABASE_URL` before running `npm run server`. GET/PUT `/api/projects/:uuid` persists the project document. This localhost-only API has no authentication and is not connected to the UI. The editor downloads JSON metadata; media embedding/relinking, project loading, migrations, and IndexedDB autosave are not implemented yet. Project and media state are lost on refresh; only panel sizes persist.
+Create a database, apply `server/schema.sql`, and set `DATABASE_URL` before running `npm run server`. GET/PUT `/api/projects/:uuid` persists the project document. This localhost-only API has no authentication and is not connected to the UI. The editor downloads schemaVersion 2 JSON metadata; media embedding/relinking, project loading, migrations, and IndexedDB autosave are not implemented yet. Project and media state are lost on refresh; only panel sizes persist.
 
 ## Verification
 
-- Strict TypeScript check and Vite production build pass.
-- Six model tests cover range bounds, split mapping, runtime-field exclusion, aspect serialization, validation, and timecode.
-- Direct execution of installed FFmpeg WASM core was smoke-tested with original generated color/tone sources: trimmed audio and silent clips normalized and concatenated to 1920×1080 H.264/stereo AAC, approximately 1 second.
-- This core smoke check does not prove browser worker loading, downloads, or preview synchronization. On retry, the execution environment rejected the local Vite server with `listen EPERM` on port 5173, so browser/Electron visual and interaction checks remain manual. See `docs/phase-1-review.md`.
+Strict TypeScript, Vite production build, and 26 tests pass. Model and store tests cover snapping, placement, trim/split, ripple, linked edits, clipboard, history transactions, JSON references and export guards. Browser smoke checks confirmed imports, track undo, delete/duplicate, Inspector cross-track placement, markers, and playback with original generated test media. Pointer-drag edge cases, full browser export, Electron, and long-project performance still need manual checks. See `docs/phase-2-review.md`.
 
 ## Dependencies and assets
 

@@ -3,6 +3,7 @@ import { fetchFile } from '@ffmpeg/util';
 import { ASPECT_SIZES } from '../types.ts';
 import type { AspectRatio, Clip } from '../types.ts';
 
+function createRunner() {
 let engine: FFmpeg | undefined;
 let loading: Promise<boolean> | undefined;
 let busy = false;
@@ -36,7 +37,7 @@ function hasAudio(value: unknown): boolean {
     && 'codec_type' in stream && stream.codec_type === 'audio');
 }
 
-export async function exportMP4(
+async function run(
   clips: readonly Clip[], onProgress: (progress: number) => void,
   proxy = false, aspect: AspectRatio = '16:9',
 ): Promise<Blob> {
@@ -100,3 +101,11 @@ export async function exportMP4(
     busy = false;
   }
 }
+
+return { run, dispose: () => { engine?.terminate(); engine = undefined; loading = undefined; } };
+}
+const mainRunner = createRunner();
+const proxyRunner = createRunner();
+export const exportMP4 = mainRunner.run;
+export const exportProxy = proxyRunner.run;
+export function disposeMediaEngines() { mainRunner.dispose(); proxyRunner.dispose(); }
