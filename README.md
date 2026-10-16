@@ -1,6 +1,6 @@
 # TrimCut Studio
 
-A local video editor built with React 18, strict TypeScript, Zustand, Canvas, and FFmpeg.wasm. Phase 2 adds a normalized multi-track document and reversible commands on top of the Phase 1 workspace and original icons. See [Phase 2 review](docs/phase-2-review.md) for behavior, validation, and the manual checklist.
+A local video editor built with React 18, strict TypeScript, Zustand, Canvas, and FFmpeg.wasm. Phase 3 adds layered preview, an audio clock and mixer, optional WebCodecs decoding, and cached timeline media analysis. See [Phase 3 review](docs/phase-3-review.md) for validation and current limits.
 
 ## Run
 
@@ -29,7 +29,7 @@ Desktop requires the Vite server running on **5173**. It is a development shell,
 - 120-step undo/redo; one command per drag; Escape cancels.
 - Multi-selection, linking, copy/paste/duplicate, markers, lock/visibility, track addition, keyboard-accessible placement.
 - Version 2 JSON metadata download; optional API validates legacy and current schemas.
-- Preview selects the top visible video and shows black gaps. Independent audio mixing and layered compositing remain Phase 3; thumbnails/waveforms also remain Phase 3.
+- Phase 3 now composites visible video layers and mixes independent audio tracks; gaps remain black. Timeline thumbnails and waveforms are cached.
 - MP4 export explicitly rejects gaps, overlaps, hidden clips and separate audio until composited export is implemented in Phase 5.
 
 ## Workspace features from Phase 1
@@ -53,7 +53,7 @@ The main workspace is desktop-first (minimum 1010px, wider with expanded panels)
 flowchart TD
   UI["React shell and inspector"] --> S["Normalized document and session"]
   T["Canvas timeline"] --> S
-  S --> P["Video playback controller"]
+  S --> P["Clock, mixer and compositor"]
   P --> C["Preview canvas"]
   UI --> J["Media jobs"]
   J --> W["FFmpeg worker"]
@@ -75,7 +75,7 @@ flowchart TD
 - `src/media/`, `hooks/useMediaJobs.ts`: import/export/proxy jobs and UI status.
 - `src/components/icons/`, `pages/IconsPage.tsx`: original icon system and gallery.
 
-The browser video element decodes frames and plays audio; Canvas fits those frames into the selected aspect. FFmpeg does not encode during normal playback or scrubbing. Preview still uses the MVP's single-video architecture; an overlap-aware compositor, independent audio clock/mixer, and WebCodecs support are later phases.
+`src/engine/` owns a single animation scheduler, AudioContext clock/mixer, layered canvas compositor, bounded WebCodecs decoding and browser fallback. Media elements still supply audio and synchronization. `src/media/cache/` owns a 32 MiB disposable LRU for thumbnails and waveforms. FFmpeg runs only for explicit export/proxy jobs. See the Phase 3 review for decoder eligibility and memory limits.
 
 ## Editing and export
 
@@ -91,12 +91,13 @@ Create a database, apply `server/schema.sql`, and set `DATABASE_URL` before runn
 
 ## Verification
 
-Strict TypeScript, Vite production build, and 26 tests pass. Model and store tests cover snapping, placement, trim/split, ripple, linked edits, clipboard, history transactions, JSON references and export guards. Browser smoke checks confirmed imports, track undo, delete/duplicate, Inspector cross-track placement, markers, and playback with original generated test media. Pointer-drag edge cases, full browser export, Electron, and long-project performance still need manual checks. See `docs/phase-2-review.md`.
+Strict TypeScript, Vite production build, and 35 tests pass. Model and store tests cover snapping, placement, trim/split, ripple, linked edits, clipboard, history transactions, JSON references and export guards. Browser smoke checks confirmed imports, track undo, delete/duplicate, Inspector cross-track placement, markers, and playback with original generated test media. Pointer-drag edge cases, full browser export, Electron, and long-project performance still need manual checks. See `docs/phase-3-review.md`.
 
 ## Dependencies and assets
 
 | Dependency | License | Use |
 |---|---|---|
+| MP4Box 2.4.1 | BSD-3-Clause | Bounded MP4 demux for WebCodecs; license in docs/licenses/ |
 | React / React DOM | MIT | UI |
 | Zustand | MIT | State |
 | Vite | MIT | Dev server/build |

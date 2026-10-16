@@ -12,10 +12,13 @@ async function load(): Promise<FFmpeg> {
   if (!engine) {
     engine = new FFmpeg();
     const base = new URL(`${import.meta.env.BASE_URL}ffmpeg/`, location.href);
-    loading = engine.load({
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    loading = Promise.race([engine.load({
       coreURL: new URL('ffmpeg-core.js', base).href,
       wasmURL: new URL('ffmpeg-core.wasm', base).href,
-    }).catch((error: unknown) => {
+    }), new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(Error('Media engine did not start within 30 seconds. Please retry.')), 30000);
+    })]).finally(() => clearTimeout(timeout)).catch((error: unknown) => {
       engine?.terminate();
       engine = undefined;
       loading = undefined;
@@ -50,14 +53,17 @@ async function run(
     onProgress(Math.min(0.99, Math.max(0, progress)));
   try {
     ff = await load();
+    onProgress(0.01);
     ff.on('progress', progress);
     for (const [index, clip] of clips.entries()) {
       const input = `input${index}`, output = `part${index}.mp4`, probe = `probe${index}.json`;
       [input, output, probe].forEach(path => paths.add(path));
       await ff.writeFile(input, await fetchFile(clip.file));
+      onProgress(0.02);
       // Core 0.12.10 can return -1 after successfully writing probe JSON.
       // A fresh output file and validated streams are the success criteria.
       await ff.ffprobe(['-v', 'error', '-show_streams', '-of', 'json', input, '-o', probe]);
+      onProgress(0.03);
       const data = await ff.readFile(probe, 'utf8');
       if (typeof data !== 'string') throw Error('Invalid media metadata.');
       const audio = hasAudio(JSON.parse(data) as unknown);
