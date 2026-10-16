@@ -1,30 +1,100 @@
-# TrimCut MVP
+# TrimCut Studio
 
-React 18 + Zustand, Canvas timeline/preview, FFmpeg.wasm export, Electron development shell, Node/PostgreSQL project API.
+A local video editor built with React 18, strict TypeScript, Zustand, Canvas, and FFmpeg.wasm. Phase 1 adds the desktop editing workspace and an original SVG icon system while preserving the single-track MVP.
 
 ## Run
 
-Node 22+ and npm required. From this folder:
+Use Node **22.18+** (or 24/26) and npm. Node's built-in TypeScript stripping runs the model tests and the server's shared model import.
 
 ```sh
-npm install
-npm run prepare:ffmpeg
+npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:5173. For desktop run `npm run desktop` in a second terminal while Vite runs. Import browser-decodable video (H.264 MP4 recommended), drag edges to trim, drag bodies to reorder, scrub ruler, split, play and export. Export outputs a letterboxed 1920×1080 30fps H.264/AAC MP4. Preview proxy is an explicit optional FFmpeg job; ordinary playback uses the browser decoder and Canvas without re-encoding. No effects/keyframe UI yet.
+Open http://127.0.0.1:5173. `predev` copies the locally installed FFmpeg core into `public/ffmpeg/`; no runtime CDN is used.
 
 ```sh
 npm test
+npm run typecheck
 npm run build
+npm run desktop
 ```
 
-## Optional persistence API
+Desktop requires the Vite server running on **5173**. It is a development shell, not a packaged production app. `build` runs type checking, prepares FFmpeg, and writes `dist/`. To inspect a production build, run `npx vite preview`. Deployment must serve the WASM file with the correct MIME type; subpath hosting requires Vite's base configuration and matching route handling. `/icons` is designed for root hosting.
 
-Create a PostgreSQL database and apply `server/schema.sql` with psql. Set DATABASE_URL, run `npm run server`. PUT/GET `/api/projects/:uuid` accepts/returns versioned project JSON. API is local only, has no authentication, and is not wired to the MVP UI. The Save JSON button downloads the same metadata format. Media files are not embedded: project restore and media relinking UI are future work. Electron exposes no custom IPC or Node APIs to the renderer; its current launcher requires the Vite server and is not a packaged distribution.
+## Implemented in Phase 1
 
-## Limits and validation
+- Token-based dark theme; cyan/teal accent; project name and JSON save.
+- Full library tab rail and contextual inspector. Future editing actions are labeled and disabled.
+- Mouse/touch and keyboard panel resizing, remembered in localStorage; double-click a divider to reset it.
+- Working video import, search, source-range editing, split, sequence reordering, play/pause, frame stepping, and scrubbing.
+- Timeline zoom and horizontal scrolling; playback keeps its playhead visible.
+- Preview fit/50%/100%, fullscreen, and 16:9 / 9:16 / 1:1 / 4:5 project ratios. The selected ratio applies to MP4 export.
+- Aspect-preserving preview proxies; exports always read original media.
+- **59 original SVG icons**, separate components in `src/components/icons/`, typed `Icon` wrapper, `index.ts` barrel. No copied editor assets or icon library.
+- `/icons` shows every icon at 16/20/24/32px in dark and light themes, with default/active/disabled examples and interactive hover/focus states.
+- A modal lists current keyboard navigation and clearly identifies future editing shortcuts.
 
-Single sequential video track; no overlays, transitions, undo, waveform, thumbnails or effects. FFmpeg runs in a worker but keeps media in WASM memory; long/large videos can exceed memory and encode slowly. Original-file export and reduced-resolution proxies preserve trim coordinates. Proxy canvas playback letterboxes into 16:9. Browser codec support determines what can be imported. Progress reflects each individual encode stage, not overall elapsed work. During export playback/editing is disabled. Generated media URLs live for the editing session.
+The main workspace is desktop-first (minimum 1010px, wider with expanded panels). Smaller windows can scroll; a compact mobile editor is not implemented.
 
-Dependencies could not be installed in the authoring environment because registry DNS was unavailable. Logic tests were run, but production build, Electron startup, actual browser playback, proxy generation, and 1080p audiovisual export need validation after installation. See docs/phase-1.md for evidence and REA follow-up.
+## Architecture
+
+```mermaid
+flowchart TD
+  UI["React shell and inspector"] --> S["Zustand editor state"]
+  T["Canvas timeline"] --> S
+  S --> P["Video playback controller"]
+  P --> C["Preview canvas"]
+  UI --> J["Media jobs"]
+  J --> W["FFmpeg worker"]
+  W --> O["MP4 or preview proxy"]
+  S --> D["Version 1 JSON"]
+  API["Optional local HTTP API"] --> DB["PostgreSQL JSONB"]
+```
+
+- `src/types.ts`, `model.ts`: typed clip ranges, time mapping, trim/split math, timecode, serialization.
+- `src/store.ts`: ordered clips and session state. Multi-track normalization and command history belong to Phase 2.
+- `src/components/layout/`: header, tabs, media panel, resize handles.
+- `src/hooks/usePanelSizes.ts`: bounded local layout preferences.
+- `src/components/preview/`, `hooks/useVideoPreview.ts`: video decoding, frame drawing, transport.
+- `src/components/timeline/`, `timeline/`, `hooks/useTimelinePointer.ts`: visible viewport drawing and pointer editing.
+- `src/components/inspector/`: selected-clip properties.
+- `src/media/`, `hooks/useMediaJobs.ts`: import/export/proxy jobs and UI status.
+- `src/components/icons/`, `pages/IconsPage.tsx`: original icon system and gallery.
+
+The browser video element decodes frames and plays audio; Canvas fits those frames into the selected aspect. FFmpeg does not encode during normal playback or scrubbing. Preview still uses the MVP's single-video architecture; an overlap-aware compositor, independent audio clock/mixer, and WebCodecs support are later phases.
+
+## Editing and export
+
+Import or drop browser-decodable video. Click a clip to inspect it; drag its edges to trim or drag the body to reorder. Use the ruler to scrub. In/out fields commit on blur or Enter. Split uses the current playhead.
+
+MP4 export is H.264, 30fps, stereo 48kHz AAC. Silent sources receive silence. Each segment is normalized and the parts are concatenated. Output sizes: 1920×1080, 1080×1920, 1080×1080, or 864×1080. Processing is local and can be slow for long media. Progress currently describes each encoding stage, not the entire job. Cancellation, custom resolution/fps/bitrate, WebM/GIF and 4K remain future work.
+
+The installed FFmpeg core can return `-1` on successful ffprobe operations. The wrapper verifies fresh output JSON and the presence of a video stream instead of rejecting that return code alone. Encode and concat exit codes are still checked.
+
+## Optional PostgreSQL API
+
+Create a database, apply `server/schema.sql`, and set `DATABASE_URL` before running `npm run server`. GET/PUT `/api/projects/:uuid` persists the project document. This localhost-only API has no authentication and is not connected to the UI. The editor downloads JSON metadata; media embedding/relinking, project loading, migrations, and IndexedDB autosave are not implemented yet. Project and media state are lost on refresh; only panel sizes persist.
+
+## Verification
+
+- Strict TypeScript check and Vite production build pass.
+- Six model tests cover range bounds, split mapping, runtime-field exclusion, aspect serialization, validation, and timecode.
+- Direct execution of installed FFmpeg WASM core was smoke-tested with original generated color/tone sources: trimmed audio and silent clips normalized and concatenated to 1920×1080 H.264/stereo AAC, approximately 1 second.
+- This core smoke check does not prove browser worker loading, downloads, or preview synchronization. On retry, the execution environment rejected the local Vite server with `listen EPERM` on port 5173, so browser/Electron visual and interaction checks remain manual. See `docs/phase-1-review.md`.
+
+## Dependencies and assets
+
+| Dependency | License | Use |
+|---|---|---|
+| React / React DOM | MIT | UI |
+| Zustand | MIT | State |
+| Vite | MIT | Dev server/build |
+| TypeScript | Apache-2.0 | Strict type checking |
+| React / React DOM / prop-types / Node type definitions | MIT | Development types |
+| Electron | MIT | Desktop development shell |
+| Express / pg | MIT | Optional persistence API |
+| @ffmpeg/ffmpeg / @ffmpeg/util | MIT | Worker wrapper/utilities |
+| @ffmpeg/core 0.12.10 | GPL-2.0-or-later | Compiled media engine |
+
+FFmpeg core and bundled codecs have separate licensing from the MIT wrapper. Retaining this dependency does not establish compatibility with every future distribution model; the export/distribution phase must resolve that choice. No additional runtime library was introduced in Phase 1. Icons are original code; no third-party demo media is included.

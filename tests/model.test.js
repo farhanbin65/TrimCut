@@ -1,5 +1,0 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {trim,split,locate,duration,serialize,validateProject} from '../src/model.js';
-const c={id:'a',assetId:'asset',name:'test',duration:10,in:2,out:8};
-test('trim clamps crossed and out-of-source bounds',()=>{assert.equal(trim(c,'in',-4).in,0);assert.ok(trim(c,'in',99).in<8);assert.equal(trim(c,'out',100).out,10);assert.deepEqual(trim(c,'out',NaN),c);});
-test('split preserves source mapping and sequence duration',()=>{const clips=split([c],3,'b');assert.equal(clips.length,2);assert.equal(clips[0].out,5);assert.equal(clips[1].in,5);assert.equal(duration(clips),6);assert.equal(locate(clips,3).clip.id,'b');assert.equal(locate(clips,3).source,5);assert.equal(split([c],0,'b').length,1);});
-test('project excludes runtime file/blob data and rejects invalid intervals',()=>{const p=serialize([{...c,file:'secret',url:'blob:temp'}]);assert.equal(p.clips[0].url,undefined);validateProject(p);assert.throws(()=>validateProject({...p,clips:[{...c,out:99}]}));});

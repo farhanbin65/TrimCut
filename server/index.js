@@ -1,4 +1,4 @@
-import express from 'express';import pg from 'pg';import {validateProject} from '../src/model.js';
+import express from 'express';import pg from 'pg';import {validateProject} from '../src/model.ts';
 const app=express(),pool=new pg.Pool({connectionString:process.env.DATABASE_URL});app.use(express.json({limit:'2mb'}));
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 app.param('id',(req,res,next,id)=>uuid.test(id)?next():res.status(400).json({error:'Invalid project ID'}));
